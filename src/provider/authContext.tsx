@@ -1,111 +1,144 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import {createContext, useEffect, useState} from "react";
+
+import { createContext, useEffect, useState } from "react";
 import {
   CognitoUserPool,
   AuthenticationDetails,
   CognitoUser,
+  CognitoUserAttribute,
 } from "amazon-cognito-identity-js";
+import { useNavigate } from "react-router";
+import React from "react";
 const poolData = {
-  UserPoolId: " ap-southeast-1_hxIAusO0I",
+  UserPoolId: "ap-southeast-1_hxIAusO0I",
   ClientId: "7s3bjqssng6pa9gva1dlaohp1c",
 };
 const userPool: any = new CognitoUserPool(poolData);
-type functionProps = {
-  email: string;
-  password: string;
-};
-type verifyProps = {
-  code: string;
-};
-type authProps = {
-  user: any;
-  setUser: any;
+type ContextType = {
+  user: null;
   token: string;
-  signUp: ({email, password}: functionProps) => void;
-  signIn: ({email, password}: functionProps) => void;
-  verifyUser: ({code}: verifyProps) => void;
-  logOut: () => void;
+  errorMessage: string;
+  setUser: (user: null) => void;
+  setErrorMessage: (errorMessage: string) => void;
+  signUp: (email: string, password: string, confirmPassword: string) => void;
+  signIn: (email: string, password: string) => void;
+  verifyUser: (code: string) => void;
+  logout: () => void;
 };
-export const AuthContext = createContext<authProps>({
-  user: {},
+export const Context = createContext<ContextType>({
+  user: null,
+  errorMessage: "",
   token: "",
-  setUser: null,
-  signIn: () => {},
+  setErrorMessage: () => {},
+  setUser: () => {},
   signUp: () => {},
-  verifyUser: () => {},
-  logOut: () => {},
+  signIn: () => {},
+  logout: () => {},
+  verifyUser:()=>{},
 });
-export const AuthProvider = ({children}: any) => {
-  const [cognitoUser, setCognitoUser] = useState<any>({Pool: userPool});
-  const [user, setUser] = useState<any>({});
-  const [token, setToken] = useState("");
+export const Provider = ({ children }: any) => {
+  const [user, setUser] = useState<any>(null);
+  const [token, setToken] = useState<any>(null);
+  const navigate = useNavigate();
+  const [errorMessage, setErrorMessage] = React.useState("");
+  useEffect(() => {
+    console.log(userPool.getCurrentUser());
+    setUser(userPool.getCurrentUser());
+  }, [userPool]);
+  const signUp = (email: string, password: string, confirmPassword: string) => {
+    var attributeList = [];
 
-  const signUp = async ({
-    email,
-    password,
-  }: {
-    email: string;
-    password: string;
-  }) => {
-    userPool.signUp(email, password, [], [], (err: any, result: any) => {
-      if (err) throw err.message || JSON.stringify(err);
-      setCognitoUser(result.user);
-      return;
-    });
+    var dataEmail = {
+      Name: "email",
+      Value: email,
+    };
+
+    var dataPhone = {
+      Name: "phone_number",
+      Value: "+97699999999",
+    };
+    let dataName = {
+      Name: "name",
+      Value: "Test1",
+    };
+    var attributeEmail = new CognitoUserAttribute(dataEmail);
+    var attributePhoneNumber = new CognitoUserAttribute(dataPhone);
+    var attributeName = new CognitoUserAttribute(dataName);
+    attributeList.push(attributeEmail);
+    attributeList.push(attributePhoneNumber);
+    attributeList.push(attributeName);
+    userPool.signUp(
+      email,
+      password,
+      attributeList,
+      [],
+      function (err: { message: any }, result: { user: any }) {
+        if (err) {
+          alert(err.message || JSON.stringify(err));
+          return;
+        }
+        var cognitoUser = result?.user;
+        setUser(cognitoUser);
+        console.log(cognitoUser);
+        console.log("user name is " + cognitoUser?.getUsername());
+        navigate("/verification");
+      }
+    );
   };
-  const signIn = async ({
-    email,
-    password,
-  }: {
-    email: string;
-    password: string;
-  }) => {
-    let authenticationDetails = new AuthenticationDetails({
+  const signIn = (email: string, password: string) => {
+    var authenticationData = {
       Username: email,
       Password: password,
-    });
-    let userInfo = new CognitoUser({
+    };
+    var authenticationDetails = new AuthenticationDetails(authenticationData);
+    var userData = {
       Username: email,
       Pool: userPool,
-    });
-    return userInfo.authenticateUser(authenticationDetails, {
-      onSuccess: (result) => {
-        const tk = result.getIdToken().getJwtToken();
-        setToken(tk);
+    };
+    var cognitoUser = new CognitoUser(userData);
+    cognitoUser.authenticateUser(authenticationDetails, {
+      onSuccess: function (result) {
+        var accessToken = result.getAccessToken().getJwtToken();
+        setToken(accessToken);
+        navigate('/')
       },
-      onFailure: (err) => {
-        throw err.message || JSON.stringify(err);
+      onFailure: function (err) {
+        alert(err.message || JSON.stringify(err));
       },
     });
   };
-  const verifyUser = ({code}: {code: string}) => {
-    if (cognitoUser) {
-      cognitoUser.confirmRegistration(code, true, (err: any, result: any) => {
-        if (err) throw err.mesage || JSON.stringify(err);
-        console.log("call result: " + result);
-      });
-    }
-  };
-  const logOut = async () => {
-    try {
-      const cognitoUser = userPool.getCurrentUser();
-      if (cognitoUser !== null) {
-        await cognitoUser.signOut();
-      }
-      return;
-    } catch (err) {
-      console.error(err);
-    }
+  const logout = () => {
+    var cognitoUser = userPool.getCurrentUser();
+    cognitoUser?.signOut();
+    setUser(null);
+    navigate("login");
   };
 
-  useEffect(() => {
-    setUser(userPool.getCurrentUser());
-  }, []);
+  const verifyUser = (code : string) => {
+    console.log(code);
+      user.confirmRegistration(code, true, (err: any, result: any) => {
+        if (err) {
+          throw err.message || JSON.stringify(err);
+        }
+        console.log("call result: " + result);
+        navigate('/')
+      });
+  };
   return (
-    <AuthContext.Provider
-      value={{user, setUser, signIn, signUp, verifyUser, logOut, token}}
+    <Context.Provider
+      value={{
+        token,
+        user,
+        setUser,
+        signUp,
+        errorMessage,
+        setErrorMessage,
+        logout,
+        signIn,
+        verifyUser,
+      }}
     >
       {children}
-    </AuthContext.Provider>
+    </Context.Provider>
   );
 };
