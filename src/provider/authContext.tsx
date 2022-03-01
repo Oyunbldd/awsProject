@@ -124,6 +124,12 @@ export const Provider = ({ children }: any) => {
         navigate('/')
       });
   };
+  useEffect(() => {
+    userPool.getCurrentUser().getSession((err: any, session: any) => {
+      if (err) return;
+      setToken(session.getIdToken().getJwtToken());
+    });
+  }, []); 
   return (
     <Context.Provider
       value={{
